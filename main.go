@@ -49,6 +49,9 @@ func process(n Node) {
 			// we do logic when we recieve from append Channel
 			// print it out
 			fmt.Println(app.val, "was recieved by follower: ", n.name)
+
+			// log it to their file
+			f.WriteString(app.val)
 		}
 
 	}
@@ -76,6 +79,6 @@ func main() {
 
 	go process(nodeA)
 	go process(nodeB)
-	nodeA.MsgCh <- Msg{val: "beep"}
+	nodeA.MsgCh <- Msg{val: "boop"}
 	time.Sleep(3000 * time.Millisecond)
 }
