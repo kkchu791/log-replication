@@ -16,7 +16,7 @@ type Node struct {
 	peers       map[string]*Node
 	matchIdx    map[string]int
 	nextIdx     map[string]int
-	AppendCh    chan Append
+	AppendReqCh chan AppendReq
 	AppendResCh chan AppendRes
 	MsgCh       chan Msg
 }
@@ -24,7 +24,7 @@ type Node struct {
 type Msg struct {
 	command string
 }
-type Append struct {
+type AppendReq struct {
 	prevLogIdx   int
 	entries      []string
 	nodeName     string
@@ -60,15 +60,15 @@ func process(n Node) {
 
 				entries := n.logs[nextIdx-1:]
 
-				app := Append{
+				app := AppendReq{
 					prevLogIdx:   prevLogIdx,
 					entries:      entries,
 					nodeName:     n.name,
 					leaderCommit: n.commitIndex,
 				}
-				peer.AppendCh <- app
+				peer.AppendReqCh <- app
 			}
-		case app := <-n.AppendCh:
+		case app := <-n.AppendReqCh:
 			var success bool
 			if app.prevLogIdx <= len(n.logs) {
 				success = true
@@ -117,7 +117,7 @@ func main() {
 		logs:        make([]string, 0),
 		matchIdx:    make(map[string]int, 0),
 		nextIdx:     make(map[string]int, 0),
-		AppendCh:    make(chan Append, 10),
+		AppendReqCh: make(chan AppendReq, 10),
 		AppendResCh: make(chan AppendRes, 10),
 		MsgCh:       make(chan Msg, 10),
 		peers:       make(map[string]*Node),
@@ -131,7 +131,7 @@ func main() {
 		logs:        make([]string, 0),
 		matchIdx:    make(map[string]int, 0),
 		nextIdx:     make(map[string]int, 0),
-		AppendCh:    make(chan Append, 10),
+		AppendReqCh: make(chan AppendReq, 10),
 		AppendResCh: make(chan AppendRes, 10),
 		MsgCh:       make(chan Msg, 10),
 		peers:       make(map[string]*Node),
