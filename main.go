@@ -68,15 +68,14 @@ func process(n Node) {
 				peer.AppendCh <- app
 			}
 		case app := <-n.AppendCh:
-
-			// we do logic when we recieve from append Channel
-			// print it out
-
 			for _, entry := range app.entries {
 				fmt.Println(entry, "was recieved by follower: ", n.name)
 
 				// log it to their file
 				f.WriteString(entry)
+
+				// update the follower state
+				n.logs = append(n.logs, entry)
 			}
 
 		}
