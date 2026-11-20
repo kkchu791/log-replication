@@ -8,19 +8,31 @@ import (
 )
 
 type Node struct {
-	name     string
-	AppendCh chan Append
-	MsgCh    chan Msg
-	peers    map[string]Node
+	name        string
+	stateM      map[string]int
+	commitIndex int
+	lastApplied int
+	logs        []string
+	peers       map[string]*Node
+	matchIdx    map[string]int
+	nextIdx     map[string]int
+	AppendCh    chan Append
+	MsgCh       chan Msg
 }
 
 type Msg struct {
-	val string
+	command string
 }
 type Append struct {
-	val     string
-	kind    string
-	success bool
+	prevLogIndex int
+	entries      []string
+	nodeName     string
+	leaderCommit int
+}
+type AppendRes struct {
+	success  bool
+	matchIdx int
+	nodeName string
 }
 
 func process(n Node) {
@@ -32,14 +44,13 @@ func process(n Node) {
 	defer f.Close()
 	for {
 		select {
-		case res := <-n.MsgCh:
-			fmt.Println(res)
-			f.WriteString(res.val)
+		case msg := <-n.MsgCh:
+			f.WriteString(msg.command)
 
 			// it needs to broadcast appends to the follower
 			for _, peer := range n.peers {
 				app := Append{
-					val:  res.val,
+					val:  res.command,
 					kind: "request",
 				}
 				peer.AppendCh <- app
@@ -59,26 +70,45 @@ func process(n Node) {
 }
 
 func main() {
-
 	nodeA := Node{
-		name:     "A",
-		AppendCh: make(chan Append, 10),
-		MsgCh:    make(chan Msg, 10),
-		peers:    make(map[string]Node),
+		name:        "A",
+		stateM:      make(map[string]int, 0),
+		commitIndex: 0,
+		lastApplied: 0,
+		logs:        make([]string, 0),
+		matchIdx:    make(map[string]int, 0),
+		nextIdx:     make(map[string]int, 0),
+		AppendCh:    make(chan Append, 10),
+		MsgCh:       make(chan Msg, 10),
+		peers:       make(map[string]*Node),
 	}
 
 	nodeB := Node{
-		name:     "B",
-		AppendCh: make(chan Append, 10),
-		MsgCh:    make(chan Msg, 10),
-		peers:    make(map[string]Node),
+		name:        "B",
+		stateM:      make(map[string]int, 0),
+		commitIndex: 0,
+		lastApplied: 0,
+		logs:        make([]string, 0),
+		matchIdx:    make(map[string]int, 0),
+		nextIdx:     make(map[string]int, 0),
+		AppendCh:    make(chan Append, 10),
+		MsgCh:       make(chan Msg, 10),
+		peers:       make(map[string]*Node),
 	}
 
-	nodeA.peers["B"] = nodeB
-	nodeB.peers["A"] = nodeA
+	nodeA.peers["B"] = &nodeB
+	nodeB.peers["A"] = &nodeA
 
+	// instantiate the leader state for nodeA
+	nodeA.matchIdx["B"] = 0
+	nodeA.nextIdx["B"] = 0
+
+	// start the nodes up
 	go process(nodeA)
 	go process(nodeB)
-	nodeA.MsgCh <- Msg{val: "boop"}
+
+	// send a message to leader
+	nodeA.MsgCh <- Msg{command: "SET x=1"}
+
 	time.Sleep(3000 * time.Millisecond)
 }
