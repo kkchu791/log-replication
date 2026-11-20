@@ -24,7 +24,7 @@ type Msg struct {
 	command string
 }
 type Append struct {
-	prevLogIndex int
+	prevLogIdx   int
 	entries      []string
 	nodeName     string
 	leaderCommit int
@@ -45,13 +45,25 @@ func process(n Node) {
 	for {
 		select {
 		case msg := <-n.MsgCh:
+			//write to logfile
 			f.WriteString(msg.command)
+
+			// write to logs to in-memory copy
+			n.logs = append(n.logs, msg.command)
 
 			// it needs to broadcast appends to the follower
 			for _, peer := range n.peers {
+
+				nextIdx := n.nextIdx[peer.name]
+				prevLogIdx := nextIdx - 1
+
+				entries := n.logs[nextIdx-1:]
+
 				app := Append{
-					val:  res.command,
-					kind: "request",
+					prevLogIdx:   prevLogIdx,
+					entries:      entries,
+					nodeName:     n.name,
+					leaderCommit: n.commitIndex,
 				}
 				peer.AppendCh <- app
 			}
@@ -59,10 +71,14 @@ func process(n Node) {
 
 			// we do logic when we recieve from append Channel
 			// print it out
-			fmt.Println(app.val, "was recieved by follower: ", n.name)
 
-			// log it to their file
-			f.WriteString(app.val)
+			for _, entry := range app.entries {
+				fmt.Println(entry, "was recieved by follower: ", n.name)
+
+				// log it to their file
+				f.WriteString(entry)
+			}
+
 		}
 
 	}
@@ -101,7 +117,7 @@ func main() {
 
 	// instantiate the leader state for nodeA
 	nodeA.matchIdx["B"] = 0
-	nodeA.nextIdx["B"] = 0
+	nodeA.nextIdx["B"] = 1
 
 	// start the nodes up
 	go process(nodeA)
