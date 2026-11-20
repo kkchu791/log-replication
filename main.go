@@ -17,6 +17,7 @@ type Node struct {
 	matchIdx    map[string]int
 	nextIdx     map[string]int
 	AppendCh    chan Append
+	AppendResCh chan AppendRes
 	MsgCh       chan Msg
 }
 
@@ -68,16 +69,39 @@ func process(n Node) {
 				peer.AppendCh <- app
 			}
 		case app := <-n.AppendCh:
-			for _, entry := range app.entries {
-				fmt.Println(entry, "was recieved by follower: ", n.name)
+			var success bool
+			if app.prevLogIdx <= len(n.logs) {
+				success = true
 
-				// log it to their file
-				f.WriteString(entry)
+				for _, entry := range app.entries {
+					fmt.Println(entry, "was recieved by follower: ", n.name)
 
-				// update the follower state
-				n.logs = append(n.logs, entry)
+					// log it to their file
+					f.WriteString(entry)
+
+					// update the follower state
+					n.logs = append(n.logs, entry)
+				}
+
+				// sends back a append res
+				leader := n.peers[app.nodeName]
+
+				matchIdx := app.prevLogIdx + len(app.entries)
+				appRes := AppendRes{
+					success:  success,
+					nodeName: n.name,
+					matchIdx: matchIdx,
+				}
+
+				fmt.Println("appRes: ", appRes)
+				leader.AppendResCh <- appRes
+			} else {
+
+				success = false
+				fmt.Println("need to write logic for if if the leader overshot the estimate")
 			}
-
+		case appRes := <-n.AppendResCh:
+			fmt.Println(n.name, " got this append Res: ", appRes)
 		}
 
 	}
@@ -94,6 +118,7 @@ func main() {
 		matchIdx:    make(map[string]int, 0),
 		nextIdx:     make(map[string]int, 0),
 		AppendCh:    make(chan Append, 10),
+		AppendResCh: make(chan AppendRes, 10),
 		MsgCh:       make(chan Msg, 10),
 		peers:       make(map[string]*Node),
 	}
@@ -107,6 +132,7 @@ func main() {
 		matchIdx:    make(map[string]int, 0),
 		nextIdx:     make(map[string]int, 0),
 		AppendCh:    make(chan Append, 10),
+		AppendResCh: make(chan AppendRes, 10),
 		MsgCh:       make(chan Msg, 10),
 		peers:       make(map[string]*Node),
 	}
@@ -125,5 +151,5 @@ func main() {
 	// send a message to leader
 	nodeA.MsgCh <- Msg{command: "SET x=1"}
 
-	time.Sleep(3000 * time.Millisecond)
+	time.Sleep(5000 * time.Millisecond)
 }
